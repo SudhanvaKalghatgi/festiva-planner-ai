@@ -1,0 +1,112 @@
+def format_budget(plan_data):
+    budget = plan_data.get("budget_split", {})
+
+    lines = ["📊 Budget Breakdown:\n"]
+
+    for category, data in budget.items():
+        pct = data["percentage"] * 100
+        amt = data["amount"]
+        lines.append(f"- {category.capitalize()}: ₹{amt:,} ({pct:.1f}%)")
+
+    return "\n".join(lines)
+
+
+def format_summary(plan_data):
+    parsed = plan_data.get("parsed_input", {})
+
+    return (
+        "📌 Event Summary:\n"
+        f"- Event: {parsed.get('event_type', '').capitalize()}\n"
+        f"- City: {parsed.get('city', '').capitalize()}\n"
+        f"- Guests: {parsed.get('guest_count')}\n"
+        f"- Budget: ₹{parsed.get('budget'):,}\n"
+    )
+
+
+def format_knowledge(knowledge_data):
+    if not knowledge_data:
+        return ""
+
+    answer = knowledge_data.get("answer", "")
+
+    return f"📚 Planning Guidance:\n\n{answer}"
+
+
+def generate_insights(plan_data):
+    budget = plan_data.get("budget_split", {})
+    insights = []
+
+    if not budget:
+        return ""
+
+    # 🔥 Exclude contingency for main analysis
+    filtered_budget = {
+        k: v for k, v in budget.items() if k != "contingency"
+    }
+
+    # 🔥 Highest real cost category
+    max_category = max(filtered_budget, key=lambda x: filtered_budget[x]["amount"])
+    max_value = filtered_budget[max_category]["amount"]
+
+    insights.append(
+        f"💡 Highest spending is on {max_category.capitalize()} (₹{max_value:,}). Consider optimizing this category."
+    )
+
+    # 🔥 Contingency analysis
+    contingency = budget.get("contingency", {}).get("percentage", 0)
+
+    if contingency > 0.15:
+        insights.append(
+            "⚠️ Contingency fund is high (>15%). You may reallocate some budget if risk is low."
+        )
+    elif contingency < 0.08:
+        insights.append(
+            "⚠️ Contingency fund is low (<8%). Consider increasing it to handle unexpected expenses."
+        )
+    else:
+        insights.append("✅ Contingency allocation looks balanced.")
+
+    # 🔥 Catering check
+    catering = budget.get("catering", {}).get("percentage", 0)
+
+    if catering > 0.18:
+        insights.append(
+            "💡 Catering cost is high. Try negotiating per plate pricing."
+        )
+
+    # 🔥 Venue check (real-world logic)
+    venue = budget.get("venue", {}).get("percentage", 0)
+
+    if venue > 0.2:
+        insights.append(
+            "💡 Venue cost is high. Consider alternative venues or off-season booking."
+        )
+
+    return "\n".join(insights)
+
+
+def generate_final_output(response: dict):
+    plan = response.get("plan")
+    knowledge = response.get("knowledge")
+
+    sections = []
+
+    # 🔥 Plan Section
+    if plan:
+        sections.append(format_summary(plan))
+        sections.append(format_budget(plan))
+
+        insights = generate_insights(plan)
+        if insights:
+            sections.append("💡 Key Insights & Recommendations:\n\n" + insights)
+
+    # 🔥 Knowledge Section
+    if knowledge:
+        sections.append(format_knowledge(knowledge))
+
+    final_output = "\n\n".join(sections)
+
+    return {
+        "formatted_response": final_output,
+        "raw": response
+    }
