@@ -14,8 +14,7 @@ MODEL_PATH = "models/budget_model.joblib"
 
 
 def load_data():
-    df = pd.read_csv(DATA_PATH)
-    return df
+    return pd.read_csv(DATA_PATH)
 
 
 def preprocess_data(df):
@@ -50,7 +49,8 @@ def preprocess_data(df):
     event_encoded = encoder.fit_transform(X[["event_type"]])
 
     event_df = pd.DataFrame(
-        event_encoded, columns=encoder.get_feature_names_out(["event_type"])
+        event_encoded,
+        columns=encoder.get_feature_names_out(["event_type"]),
     )
 
     X = X.drop(columns=["event_type"]).reset_index(drop=True)
@@ -68,7 +68,6 @@ def train_model(X, y):
             random_state=42,
         )
     )
-
     model.fit(X, y)
     return model
 
@@ -76,7 +75,6 @@ def train_model(X, y):
 def evaluate_model(model, X_test, y_test):
     preds = model.predict(X_test)
     mae = mean_absolute_error(y_test, preds)
-
     print(f"Mean Absolute Error: {mae:.4f}")
 
 
@@ -86,7 +84,7 @@ def save_model(model, encoder):
 
 
 # -------------------------------
-# 🔥 NEW: MODEL LOADING + PREDICTION
+# 🔥 INFERENCE FUNCTIONS
 # -------------------------------
 
 def load_model():
@@ -99,6 +97,10 @@ def predict_budget(input_data: dict):
 
     df = pd.DataFrame([input_data])
 
+    # 🔥 FIX 1: remove unused columns
+    if "city" in df.columns:
+        df = df.drop(columns=["city"])
+
     # Encode event_type
     event_encoded = encoder.transform(df[["event_type"]])
     event_df = pd.DataFrame(
@@ -109,9 +111,14 @@ def predict_budget(input_data: dict):
     df = df.drop(columns=["event_type"]).reset_index(drop=True)
     df = pd.concat([df, event_df], axis=1)
 
+    # 🔥 FIX 2: enforce SAME column order as training
+    expected_columns = model.estimators_[0].feature_names_in_
+    df = df[expected_columns]
+
+    # Predict
     preds = model.predict(df)[0]
 
-    # 🔥 IMPORTANT: Normalize predictions so sum = 1
+    # 🔥 FIX 3: normalize output
     preds = preds / preds.sum()
 
     categories = [
@@ -125,9 +132,7 @@ def predict_budget(input_data: dict):
         "contingency",
     ]
 
-    result = dict(zip(categories, preds))
-
-    return result
+    return dict(zip(categories, preds))
 
 
 def main():
