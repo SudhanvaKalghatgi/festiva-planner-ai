@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from src.ml.pipeline import generate_plan
 from src.agents.knowledge_agent import knowledge_agent
-
+from src.agents.orchestrator import orchestrator
 
 app = FastAPI(title="Festiva Planner AI")
 
@@ -38,4 +38,9 @@ def create_plan(request: QueryRequest):
 @app.post("/knowledge/query")
 def knowledge_query(request: QueryRequest):
     result = knowledge_agent(request.query)
+    return result
+
+@app.post("/assistant")
+def assistant(request: QueryRequest):
+    result = orchestrator(request.query)
     return result
