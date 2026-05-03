@@ -97,7 +97,7 @@ def predict_budget(input_data: dict):
 
     df = pd.DataFrame([input_data])
 
-    # 🔥 FIX 1: remove unused columns
+    # 🔥 Remove unused column
     if "city" in df.columns:
         df = df.drop(columns=["city"])
 
@@ -111,15 +111,18 @@ def predict_budget(input_data: dict):
     df = df.drop(columns=["event_type"]).reset_index(drop=True)
     df = pd.concat([df, event_df], axis=1)
 
-    # 🔥 FIX 2: enforce SAME column order as training
+    # 🔥 Ensure correct column order
     expected_columns = model.estimators_[0].feature_names_in_
     df = df[expected_columns]
 
-    # Predict
+    # 🔥 Predict
     preds = model.predict(df)[0]
 
-    # 🔥 FIX 3: normalize output
+    # 🔥 Normalize
     preds = preds / preds.sum()
+
+    # 🔥 FIX: Convert numpy → Python float (CRITICAL for FastAPI)
+    preds = [float(x) for x in preds]
 
     categories = [
         "venue",
