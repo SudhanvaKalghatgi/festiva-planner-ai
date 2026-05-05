@@ -1,6 +1,8 @@
+from src.agents.polish_agent import polish_response
+
+
 def format_budget(plan_data):
     budget = plan_data.get("budget_split", {})
-
     lines = ["📊 Budget Breakdown:\n"]
 
     for category, data in budget.items():
@@ -28,7 +30,6 @@ def format_knowledge(knowledge_data):
         return ""
 
     answer = knowledge_data.get("answer", "")
-
     return f"📚 Planning Guidance:\n\n{answer}"
 
 
@@ -39,12 +40,9 @@ def generate_insights(plan_data):
     if not budget:
         return ""
 
-    # 🔥 Exclude contingency for main analysis
-    filtered_budget = {
-        k: v for k, v in budget.items() if k != "contingency"
-    }
+    # 🔥 Ignore contingency for main analysis
+    filtered_budget = {k: v for k, v in budget.items() if k != "contingency"}
 
-    # 🔥 Highest real cost category
     max_category = max(filtered_budget, key=lambda x: filtered_budget[x]["amount"])
     max_value = filtered_budget[max_category]["amount"]
 
@@ -52,7 +50,7 @@ def generate_insights(plan_data):
         f"💡 Highest spending is on {max_category.capitalize()} (₹{max_value:,}). Consider optimizing this category."
     )
 
-    # 🔥 Contingency analysis
+    # 🔥 Contingency logic
     contingency = budget.get("contingency", {}).get("percentage", 0)
 
     if contingency > 0.15:
@@ -66,18 +64,12 @@ def generate_insights(plan_data):
     else:
         insights.append("✅ Contingency allocation looks balanced.")
 
-    # 🔥 Catering check
-    catering = budget.get("catering", {}).get("percentage", 0)
+    # 🔥 Catering
+    if budget.get("catering", {}).get("percentage", 0) > 0.18:
+        insights.append("💡 Catering cost is high. Try negotiating per plate pricing.")
 
-    if catering > 0.18:
-        insights.append(
-            "💡 Catering cost is high. Try negotiating per plate pricing."
-        )
-
-    # 🔥 Venue check (real-world logic)
-    venue = budget.get("venue", {}).get("percentage", 0)
-
-    if venue > 0.2:
+    # 🔥 Venue
+    if budget.get("venue", {}).get("percentage", 0) > 0.2:
         insights.append(
             "💡 Venue cost is high. Consider alternative venues or off-season booking."
         )
@@ -88,10 +80,11 @@ def generate_insights(plan_data):
 def generate_final_output(response: dict):
     plan = response.get("plan")
     knowledge = response.get("knowledge")
+    conflicts = response.get("conflicts")
 
     sections = []
 
-    # 🔥 Plan Section
+    # 🔥 Plan section
     if plan:
         sections.append(format_summary(plan))
         sections.append(format_budget(plan))
@@ -100,11 +93,23 @@ def generate_final_output(response: dict):
         if insights:
             sections.append("💡 Key Insights & Recommendations:\n\n" + insights)
 
-    # 🔥 Knowledge Section
+    # 🔥 Conflict warnings
+    if conflicts:
+        warnings_text = "\n".join(conflicts)
+        sections.append("🚨 Risks & Warnings:\n\n" + warnings_text)
+
+    # 🔥 Knowledge section
     if knowledge:
         sections.append(format_knowledge(knowledge))
 
     final_output = "\n\n".join(sections)
+
+    # 🔥 LLM polishing (controlled)
+    try:
+        if len(final_output) > 200:
+            final_output = polish_response(final_output)
+    except Exception:
+        pass  # fallback silently
 
     return {
         "formatted_response": final_output,
