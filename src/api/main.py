@@ -3,20 +3,21 @@ from pydantic import BaseModel
 
 from src.ml.pipeline import generate_plan
 from src.agents.knowledge_agent import knowledge_agent
-from src.agents.orchestrator import orchestrator
+from src.agents.output_engine import generate_final_output
+from src.agents.polish_agent import polish_response
 
 app = FastAPI(title="Festiva Planner AI")
 
 
 # -----------------------------
-# Request Models
+# Request Model
 # -----------------------------
 class QueryRequest(BaseModel):
     query: str
 
 
 # -----------------------------
-# Root Endpoint
+# Root
 # -----------------------------
 @app.get("/")
 def root():
@@ -24,23 +25,28 @@ def root():
 
 
 # -----------------------------
-# Planner Endpoint (ML + Pipeline)
+# Main Planner (FULL PIPELINE)
 # -----------------------------
 @app.post("/plan")
 def create_plan(request: QueryRequest):
-    result = generate_plan(request.query)
-    return result
+    raw_result = generate_plan(request.query)
+
+    # 🔥 Format output
+    formatted = generate_final_output(raw_result)
+
+    # 🔥 Polish using Gemini
+    polished_text = polish_response(formatted["formatted_response"])
+
+    return {
+        "query": request.query,
+        "response": polished_text,
+        "raw": formatted["raw"]
+    }
 
 
 # -----------------------------
-# Knowledge Endpoint (RAG)
+# Knowledge (RAG)
 # -----------------------------
 @app.post("/knowledge/query")
 def knowledge_query(request: QueryRequest):
-    result = knowledge_agent(request.query)
-    return result
-
-@app.post("/assistant")
-def assistant(request: QueryRequest):
-    result = orchestrator(request.query)
-    return result
+    return knowledge_agent(request.query)

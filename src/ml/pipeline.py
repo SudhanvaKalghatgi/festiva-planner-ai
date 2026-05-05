@@ -1,55 +1,44 @@
-from src.ml.input_parser import parse_input
+from src.ml.input_parser import parse_query
 from src.ml.budget_model import predict_budget
-from src.ml.reallocation import reallocate_budget
+from src.agents.knowledge_agent import knowledge_agent
+from src.agents.conflict_agent import conflict_agent
 
 
-def generate_plan(user_input: str):
-    # Step 1: Parse input
-    parsed = parse_input(user_input)
+def generate_plan(query: str):
+    # 🔥 Step 1: Parse user input
+    parsed = parse_query(query)
 
-    # Step 2: Predict budget split
-    budget_split = predict_budget(parsed)
+    # 🔥 Step 2: Predict budget split
+    budget_percentages = predict_budget(parsed)
 
-    # Step 3: Apply dynamic changes (basic trigger)
-    if "music" in user_input.lower():
-        budget_split = reallocate_budget(budget_split, "add music")
+    # 🔥 Step 3: Convert percentages → amounts
+    total_budget = parsed.get("budget", 0)
 
-    # Step 4: Get total budget from parsed input
-    total_budget = parsed.get("budget", 1000000)
-
-    # 🔥 Step 5: Convert to exact budget allocation (no rounding loss)
-
-    # Raw amounts
-    raw_amounts = {k: v * total_budget for k, v in budget_split.items()}
-
-    # Convert to integers
-    int_amounts = {k: int(v) for k, v in raw_amounts.items()}
-
-    # Fix rounding difference
-    difference = total_budget - sum(int_amounts.values())
-
-    # Add remaining amount to largest category
-    max_key = max(int_amounts, key=int_amounts.get)
-    int_amounts[max_key] += difference
-
-    # Final structured output
-    detailed_budget = {
-        k: {
-            "percentage": round(budget_split[k], 3),
-            "amount": int_amounts[k],
+    budget_split = {}
+    for category, pct in budget_percentages.items():
+        amount = int(pct * total_budget)
+        budget_split[category] = {
+            "percentage": pct,
+            "amount": amount
         }
-        for k in budget_split
-    }
 
-    return {
+    # 🔥 Step 4: Plan object
+    plan = {
         "parsed_input": parsed,
-        "budget_split": detailed_budget,
+        "budget_split": budget_split
     }
 
+    # 🔥 Step 5: Knowledge (slightly improved trigger)
+    knowledge = None
+    if any(k in query.lower() for k in ["timeline", "plan", "how", "guide", "steps"]):
+        knowledge = knowledge_agent(query)
 
-if __name__ == "__main__":
-    user_text = "Wedding in Bangalore for 200 guests with 15 lakh budget and live music"
+    # 🔥 Step 6: Conflicts
+    conflicts = conflict_agent(plan)
 
-    result = generate_plan(user_text)
-
-    print(result)
+    # 🔥 Step 7: Return final
+    return {
+        "plan": plan,
+        "knowledge": knowledge,
+        "conflicts": conflicts
+    }

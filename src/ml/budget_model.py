@@ -13,6 +13,10 @@ DATA_PATH = "data/raw/events.csv"
 MODEL_PATH = "models/budget_model.joblib"
 
 
+# -------------------------------
+# TRAINING
+# -------------------------------
+
 def load_data():
     return pd.read_csv(DATA_PATH)
 
@@ -45,7 +49,7 @@ def preprocess_data(df):
         ]
     ]
 
-    encoder = OneHotEncoder(sparse_output=False)
+    encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
     event_encoded = encoder.fit_transform(X[["event_type"]])
 
     event_df = pd.DataFrame(
@@ -84,7 +88,7 @@ def save_model(model, encoder):
 
 
 # -------------------------------
-# 🔥 INFERENCE FUNCTIONS
+# INFERENCE
 # -------------------------------
 
 def load_model():
@@ -92,16 +96,34 @@ def load_model():
     return bundle["model"], bundle["encoder"]
 
 
-def predict_budget(input_data: dict):
+def _prepare_dataframe(input_data):
+    """
+    Accept dict OR DataFrame and normalize into single-row DataFrame
+    """
+    if isinstance(input_data, pd.DataFrame):
+        df = input_data.copy()
+    elif isinstance(input_data, dict):
+        df = pd.DataFrame([input_data])
+    else:
+        raise ValueError("Input must be dict or DataFrame")
+
+    return df
+
+
+def predict_budget(input_data):
     model, encoder = load_model()
 
-    df = pd.DataFrame([input_data])
+    # 🔥 FIX: normalize input (no double wrapping)
+    df = _prepare_dataframe(input_data)
 
-    # 🔥 Remove unused column
+    # 🔥 Drop unused column if present
     if "city" in df.columns:
         df = df.drop(columns=["city"])
 
-    # Encode event_type
+    # 🔥 Encode event_type safely
+    if "event_type" not in df.columns:
+        raise ValueError("Missing 'event_type' in input")
+
     event_encoded = encoder.transform(df[["event_type"]])
     event_df = pd.DataFrame(
         event_encoded,
@@ -111,17 +133,27 @@ def predict_budget(input_data: dict):
     df = df.drop(columns=["event_type"]).reset_index(drop=True)
     df = pd.concat([df, event_df], axis=1)
 
-    # 🔥 Ensure correct column order
+    # 🔥 Align columns with training schema
     expected_columns = model.estimators_[0].feature_names_in_
+
+    # Add missing columns
+    for col in expected_columns:
+        if col not in df.columns:
+            df[col] = 0
+
+    # Remove extra columns
     df = df[expected_columns]
 
     # 🔥 Predict
     preds = model.predict(df)[0]
 
-    # 🔥 Normalize
-    preds = preds / preds.sum()
+    # 🔥 Normalize safely
+    total = preds.sum()
+    if total == 0:
+        preds = np.ones_like(preds) / len(preds)
+    else:
+        preds = preds / total
 
-    # 🔥 FIX: Convert numpy → Python float (CRITICAL for FastAPI)
     preds = [float(x) for x in preds]
 
     categories = [
@@ -137,6 +169,10 @@ def predict_budget(input_data: dict):
 
     return dict(zip(categories, preds))
 
+
+# -------------------------------
+# TRAIN ENTRYPOINT
+# -------------------------------
 
 def main():
     df = load_data()
