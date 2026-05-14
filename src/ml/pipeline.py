@@ -2,7 +2,7 @@ from src.ml.input_parser import parse_query
 from src.ml.budget_model import predict_budget
 from src.agents.knowledge_agent import knowledge_agent
 from src.agents.conflict_agent import conflict_agent
-
+from src.agents.recommendation_agent import recommendation_agent
 
 def generate_plan(query: str):
     # 🔥 Step 1: Parse user input
@@ -36,9 +36,12 @@ def generate_plan(query: str):
     # 🔥 Step 6: Conflicts
     conflicts = conflict_agent(plan)
 
+    recommendations = recommendation_agent(plan, conflicts)
+
     # 🔥 Step 7: Return final
     return {
-        "plan": plan,
-        "knowledge": knowledge,
-        "conflicts": conflicts
+    "plan": plan,
+    "knowledge": knowledge,
+    "conflicts": conflicts,
+    "recommendations": recommendations
     }

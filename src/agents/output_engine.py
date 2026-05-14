@@ -8,7 +8,10 @@ def format_budget(plan_data):
     for category, data in budget.items():
         pct = data["percentage"] * 100
         amt = data["amount"]
-        lines.append(f"- {category.capitalize()}: ₹{amt:,} ({pct:.1f}%)")
+
+        lines.append(
+            f"- {category.capitalize()}: ₹{amt:,} ({pct:.1f}%)"
+        )
 
     return "\n".join(lines)
 
@@ -30,7 +33,20 @@ def format_knowledge(knowledge_data):
         return ""
 
     answer = knowledge_data.get("answer", "")
+
     return f"📚 Planning Guidance:\n\n{answer}"
+
+
+def format_recommendations(recommendations):
+    if not recommendations:
+        return ""
+
+    lines = ["🎯 Smart Recommendations:\n"]
+
+    for recommendation in recommendations:
+        lines.append(f"- {recommendation}")
+
+    return "\n".join(lines)
 
 
 def generate_insights(plan_data):
@@ -41,37 +57,90 @@ def generate_insights(plan_data):
         return ""
 
     # 🔥 Ignore contingency for main analysis
-    filtered_budget = {k: v for k, v in budget.items() if k != "contingency"}
+    filtered_budget = {
+        k: v for k, v in budget.items()
+        if k != "contingency"
+    }
 
-    max_category = max(filtered_budget, key=lambda x: filtered_budget[x]["amount"])
+    max_category = max(
+        filtered_budget,
+        key=lambda x: filtered_budget[x]["amount"]
+    )
+
     max_value = filtered_budget[max_category]["amount"]
 
     insights.append(
-        f"💡 Highest spending is on {max_category.capitalize()} (₹{max_value:,}). Consider optimizing this category."
+        f"💡 Highest spending is on "
+        f"{max_category.capitalize()} "
+        f"(₹{max_value:,}). "
+        f"Consider optimizing this category."
     )
 
     # 🔥 Contingency logic
-    contingency = budget.get("contingency", {}).get("percentage", 0)
+    contingency = budget.get(
+        "contingency", {}
+    ).get("percentage", 0)
 
     if contingency > 0.15:
         insights.append(
-            "⚠️ Contingency fund is high (>15%). You may reallocate some budget if risk is low."
+            "⚠️ Contingency fund is high (>15%). "
+            "You may reallocate some budget if risk is low."
         )
+
     elif contingency < 0.08:
         insights.append(
-            "⚠️ Contingency fund is low (<8%). Consider increasing it to handle unexpected expenses."
+            "⚠️ Contingency fund is low (<8%). "
+            "Consider increasing it to handle unexpected expenses."
         )
+
     else:
-        insights.append("✅ Contingency allocation looks balanced.")
-
-    # 🔥 Catering
-    if budget.get("catering", {}).get("percentage", 0) > 0.18:
-        insights.append("💡 Catering cost is high. Try negotiating per plate pricing.")
-
-    # 🔥 Venue
-    if budget.get("venue", {}).get("percentage", 0) > 0.2:
         insights.append(
-            "💡 Venue cost is high. Consider alternative venues or off-season booking."
+            "✅ Contingency allocation looks balanced."
+        )
+
+    # 🔥 Catering analysis
+    catering_pct = budget.get(
+        "catering", {}
+    ).get("percentage", 0)
+
+    if catering_pct > 0.18:
+        insights.append(
+            "💡 Catering cost is high. "
+            "Try negotiating per plate pricing."
+        )
+
+    elif catering_pct < 0.10:
+        insights.append(
+            "⚠️ Catering allocation is low. "
+            "Guest experience may be affected."
+        )
+
+    # 🔥 Venue analysis
+    venue_pct = budget.get(
+        "venue", {}
+    ).get("percentage", 0)
+
+    if venue_pct > 0.20:
+        insights.append(
+            "💡 Venue cost is high. "
+            "Consider alternative venues or off-season booking."
+        )
+
+    elif venue_pct < 0.08:
+        insights.append(
+            "⚠️ Venue allocation looks low. "
+            "Finding quality venues may be difficult."
+        )
+
+    # 🔥 Decor analysis
+    decor_pct = budget.get(
+        "decor", {}
+    ).get("percentage", 0)
+
+    if decor_pct > 0.18:
+        insights.append(
+            "💡 Decor spending is relatively high. "
+            "Consider reallocating some budget toward guest experience."
         )
 
     return "\n".join(insights)
@@ -81,6 +150,7 @@ def generate_final_output(response: dict):
     plan = response.get("plan")
     knowledge = response.get("knowledge")
     conflicts = response.get("conflicts")
+    recommendations = response.get("recommendations")
 
     sections = []
 
@@ -90,26 +160,48 @@ def generate_final_output(response: dict):
         sections.append(format_budget(plan))
 
         insights = generate_insights(plan)
+
         if insights:
-            sections.append("💡 Key Insights & Recommendations:\n\n" + insights)
+            sections.append(
+                "💡 Key Insights & Recommendations:\n\n"
+                + insights
+            )
 
     # 🔥 Conflict warnings
     if conflicts:
-        warnings_text = "\n".join(conflicts)
-        sections.append("🚨 Risks & Warnings:\n\n" + warnings_text)
+        warnings_text = "\n".join(
+            [f"- {warning}" for warning in conflicts]
+        )
+
+        sections.append(
+            "🚨 Risks & Warnings:\n\n"
+            + warnings_text
+        )
+
+    # 🔥 Smart recommendations
+    if recommendations:
+        sections.append(
+            format_recommendations(recommendations)
+        )
 
     # 🔥 Knowledge section
     if knowledge:
-        sections.append(format_knowledge(knowledge))
+        sections.append(
+            format_knowledge(knowledge)
+        )
 
     final_output = "\n\n".join(sections)
 
-    # 🔥 LLM polishing (controlled)
+    # 🔥 LLM polishing
     try:
         if len(final_output) > 200:
-            final_output = polish_response(final_output)
+            polished = polish_response(final_output)
+
+            if polished and len(polished.strip()) > 0:
+                final_output = polished
+
     except Exception:
-        pass  # fallback silently
+        pass  # silent fallback
 
     return {
         "formatted_response": final_output,
