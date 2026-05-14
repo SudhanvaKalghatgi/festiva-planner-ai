@@ -49,6 +49,18 @@ def format_recommendations(recommendations):
     return "\n".join(lines)
 
 
+def format_negotiation(negotiation):
+    if not negotiation:
+        return ""
+
+    lines = ["💬 Negotiation Strategy:\n"]
+
+    for item in negotiation:
+        lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
 def generate_insights(plan_data):
     budget = plan_data.get("budget_split", {})
     insights = []
@@ -151,6 +163,7 @@ def generate_final_output(response: dict):
     knowledge = response.get("knowledge")
     conflicts = response.get("conflicts")
     recommendations = response.get("recommendations")
+    negotiation = response.get("negotiation")
 
     sections = []
 
@@ -178,10 +191,16 @@ def generate_final_output(response: dict):
             + warnings_text
         )
 
-    # 🔥 Smart recommendations
+    # 🔥 Recommendations
     if recommendations:
         sections.append(
             format_recommendations(recommendations)
+        )
+
+    # 🔥 Negotiation section
+    if negotiation:
+        sections.append(
+            format_negotiation(negotiation)
         )
 
     # 🔥 Knowledge section
@@ -195,6 +214,7 @@ def generate_final_output(response: dict):
     # 🔥 LLM polishing
     try:
         if len(final_output) > 200:
+
             polished = polish_response(final_output)
 
             if polished and len(polished.strip()) > 0:
